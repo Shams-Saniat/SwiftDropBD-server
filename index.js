@@ -3,7 +3,7 @@ const cors = require('cors');
 const app = express();
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-
+const stripe = require('stripe')(process.env.STRIPE_SECRET);
 
 const port = 3000
 
@@ -46,9 +46,9 @@ async function run() {
             res.send(result);
         })
 
-        app.get('/parcels/:id', async(req, res)=>{
-            const id= req.params.id;
-            const query = {_id: new ObjectId(id)}
+        app.get('/parcels/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
             const result = await parcelsCollection.findOne(query);
             res.send(result);
         })
@@ -64,10 +64,33 @@ async function run() {
 
         app.delete('/parcels/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)}
+            const query = { _id: new ObjectId(id) }
 
             const result = await parcelsCollection.deleteOne(query);
             res.send(result);
+        })
+
+        // payment related APIs
+        app.post('/create-checkout-session', async (req, res) => {
+            const paymnetInfo = req.body;
+            const session = await stripe.checkout.sessions.create({
+                line_items: [
+                    {
+                        // Provide the exact Price ID (for example, price_1234) of the product you want to sell
+                        price_data: {
+                            currency: 'USD',
+                            unit_amount: 1500,
+                            product_data: {
+                                name: paymnetInfo.parcelName
+                            }
+                        },
+                        quantity: 1,
+                    },
+                ],
+                customer_email: paymnetInfo.senderEmail,
+                mode: 'payment',
+                success_url: `${YOUR_DOMAIN.SITE_DOMAIN}/dashboard/payment?success=true`,
+            });
         })
 
         // Send a ping to confirm a successful connection
