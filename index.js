@@ -71,6 +71,36 @@ async function run() {
         })
 
         // payment related APIs
+        app.post('/payment-checkout-session', async (req, res) => {
+            const paymentInfo = req.body;
+            const amount = parseInt(paymentInfo.cost) * 100;
+            const session = await stripe.checkout.sessions.create({
+                line_items: [
+                    {
+                        // Provide the exact Price ID (for example, price_1234) of the product you want to sell
+                        price_data: {
+                            currency: 'usd',
+                            unit_amount: amount,
+                            product_data: {
+                                name: `Please pay for: ${paymentInfo.parcelName}`
+                            }
+                        },
+                        quantity: 1,
+                    },
+                ],
+                mode: 'payment',
+                metadata: {
+                    parcelId: paymentInfo.parcelId
+                },
+                customer_email: paymentInfo.senderEmail,
+                success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+            })
+
+            res.send({ url: session.url })
+        })
+
+        // old
         app.post('/create-checkout-session', async (req, res) => {
             const paymentInfo = req.body;
             const amount = parseInt(paymentInfo.cost) * 100;
@@ -98,6 +128,28 @@ async function run() {
 
             console.log(session)
             res.send({ url: session.url })
+        })
+
+        app.patch('/payment-success', async (req, res) => {
+            const sessionId = req.query.session_id;
+
+            const session = await stripe.checkout.sessions.retrieve(sessionId);
+            console.log('session retrieve', session)
+            if (session.payment_status === 'paid') {
+                const id = session.metadata.parcelId;
+                const query = { _id: new ObjectId(id) }
+                const update = {
+                    $set: {
+                        paymentStatus: 'paid',
+
+                    }
+                }
+
+                const result = await parcelsCollection.updateOne('query', update);
+                res.send({ success: false })
+            }
+
+            res.send({ success: false })
         })
 
         // Send a ping to confirm a successful connection
