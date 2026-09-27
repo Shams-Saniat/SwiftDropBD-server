@@ -29,6 +29,7 @@ async function run() {
 
         const db = client.db('swift_drop_bd_db');
         const parcelsCollection = db.collection("parcels");
+        const paymentCollection = db.collection('payments');
 
         // parcel api
         app.get('/parcels', async (req, res) => {
@@ -120,7 +121,8 @@ async function run() {
                 customer_email: paymentInfo.senderEmail,
                 mode: 'payment',
                 metadata: {
-                    parcelId: paymentInfo.parcelId
+                    parcelId: paymentInfo.parcelId,
+                    parcelName: paymentInfo.parcelName
                 },
                 success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success`,
                 cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
@@ -145,8 +147,24 @@ async function run() {
                     }
                 }
 
-                const result = await parcelsCollection.updateOne('query', update);
-                res.send({ success: false })
+                const result = await parcelsCollection.updateOne(query, update);
+
+                const payment = {
+                    amount: session.amount_total / 100,
+                    currency: session.currency,
+                    customerEmail: session.customer_email,
+                    parcelId: session.metadata.parcelId,
+                    parcelName: session.metadata.parcelName,
+                    transactionId: session.payment_intent,
+                    paymentStatus: session.payment_status,
+                    paidAt: new Date(),
+                    trackingId: 
+                }
+
+                if (session.payment_status === 'paid') {
+                    const resultPayment = await paymentCollection.insertOne(payment)
+                    res.send({ success: true, modifyParcel: result, paymentInfo: resultPayment })
+                }
             }
 
             res.send({ success: false })
