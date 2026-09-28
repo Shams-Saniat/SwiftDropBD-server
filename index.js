@@ -13,7 +13,7 @@ const admin = require("firebase-admin");
 const serviceAccount = require("./swift-drop-firebase-adminsdk.json");
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount)
 });
 
 
@@ -29,14 +29,23 @@ function generateTrackingId() {
 app.use(express.json());
 app.use(cors());
 
-const verifyFBToken = (req, res, next) => {
-    console.log('headers in the middleware', req.headers.authorization)
+const verifyFBToken = async (req, res, next) => {
     const token = req.headers.authorization;
 
     if (!token) {
         return res.status(401).send({ message: 'unauthorized acceess' })
     }
-    next();
+
+    try {
+        const idToken = token.split(' ')[1];
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        console.log('decoded in the token', decoded);
+        req.decoded_email = decoded.email;
+        next();
+    } catch (err) {
+        return res.status(401).send({ message: 'unauthorized access' })
+    }
+
 }
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.s1tegav.mongodb.net/?appName=Cluster0`;
@@ -228,7 +237,12 @@ async function run() {
             // console.log('headers', req.headers);
 
             if (email) {
-                query.customerEmail = email
+                query.customerEmail = email;
+
+                // check email address
+                if (email !== req.decoded_email){
+                    return  res.status(403).send({message: 'forbidden address'})
+                }
             }
             const cursor = paymentCollection.find(query);
             const result = await cursor.toArray();
