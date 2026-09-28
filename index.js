@@ -8,6 +8,15 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET);
 const port = process.env.PORT || 3000
 const crypto = require("crypto");
 
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./swift-drop-firebase-adminsdk.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+
 function generateTrackingId() {
     const prefix = "PRCL"; //your brand prefix
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, ""); //YYYYMMDD
@@ -19,6 +28,16 @@ function generateTrackingId() {
 // middleware
 app.use(express.json());
 app.use(cors());
+
+const verifyFBToken = (req, res, next) => {
+    console.log('headers in the middleware', req.headers.authorization)
+    const token = req.headers.authorization;
+
+    if (!token) {
+        return res.status(401).send({ message: 'unauthorized acceess' })
+    }
+    next();
+}
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.s1tegav.mongodb.net/?appName=Cluster0`;
 
@@ -202,9 +221,12 @@ async function run() {
         })
 
         // payment related APIs
-        app.get('/payments', async (req, res) => {
+        app.get('/payments', verifyFBToken, async (req, res) => {
             const email = req.query.email;
             const query = {}
+
+            // console.log('headers', req.headers);
+
             if (email) {
                 query.customerEmail = email
             }
