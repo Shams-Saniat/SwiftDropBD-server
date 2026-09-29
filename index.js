@@ -65,8 +65,19 @@ async function run() {
         await client.connect();
 
         const db = client.db('swift_drop_bd_db');
+        const userCollection = db.collection("users");
         const parcelsCollection = db.collection("parcels");
         const paymentCollection = db.collection('payments');
+
+        // user related APIs
+        app.post('/users', async(req, res)=>{
+            const user = req.body;
+            user.role = 'user';
+            user.createAt = new Date();
+
+            const result = await userCollection.insertOne(user);
+            res.send(result);
+        })
 
         // parcel api
         app.get('/parcels', async (req, res) => {
@@ -240,11 +251,11 @@ async function run() {
                 query.customerEmail = email;
 
                 // check email address
-                if (email !== req.decoded_email){
-                    return  res.status(403).send({message: 'forbidden address'})
+                if (email !== req.decoded_email) {
+                    return res.status(403).send({ message: 'forbidden address' })
                 }
             }
-            const cursor = paymentCollection.find(query);
+            const cursor = paymentCollection.find(query).sort({ paidAt: -1 });
             const result = await cursor.toArray();
             res.send(result);
         })
